@@ -10,12 +10,35 @@ var useState = React.useState, useEffect = React.useEffect, useRef = React.useRe
 
 var PRO_IDS = ["attack-defense", "pentest", "code-audit", "av-evasion", "incident-response", "binary-analysis", "cloud-security", "ctf-solver", "asset-mapping"];
 var RESEARCHER = "redteam";
+// 官方内置预设声明不带 name，显示名走 locale（见 dsh-agent-preset-registry/display）。
+// 本插件接管 chip 后若直接用 name||id，会把 standard 显示成 "standard"。
+var BUILT_IN_COPY = {
+	standard: { name: { zh: "标准模式", en: "Standard mode" }, description: { zh: "处理代码、文件和资料，适合大多数任务。Agent 会按需使用检索、编辑和终端等工具。", en: "Work with code, files, and information. Suitable for most tasks, with search, editing, terminal commands, and other tools available as needed." } },
+	ptc: { name: { zh: "PTC 模式", en: "PTC mode" }, description: { zh: "包含标准模式的所有能力，更适合批量调用工具，并对结果进行筛选、整理、去重、统计或汇总的任务。", en: "Includes all Standard mode capabilities. Better suited to tasks that call tools in batches and then filter, organize, deduplicate, count, or summarize the results." } },
+	minimal: { name: { zh: "极简模式", en: "Minimal mode" }, description: { zh: "Agent 使用终端和图片读取工具，并支持上下文压缩，适合测试和对比其基础表现。", en: "The agent uses a terminal and image reading, with context compaction. Useful for testing and comparing its basic performance." } },
+	cordis: { name: { zh: "创造模式", en: "Creator mode" }, description: { zh: "用对话定制 DSH：让 Agent 编写插件，添加新功能或界面；也能组合工具和提示词，创建自己的模式。", en: "Customize DSH through conversation. Let the agent write plugins that add features or UI, or combine tools and prompts to create your own mode." } }
+};
 var L10N = {
 	zh: { group: "专业安全模式", groupDesc: "九个专业安全模式", researcher: "研究员模式" },
 	en: { group: "Professional security", groupDesc: "Nine specialist modes", researcher: "Researcher" }
 };
+function lang() {
+	return /^zh/.test(navigator.language || "") ? "zh" : "en";
+}
 function t() {
-	return /^zh/.test(navigator.language || "") ? L10N.zh : L10N.en;
+	return L10N[lang()];
+}
+function displayName(preset) {
+	if (preset.name) return preset.name;
+	var copy = BUILT_IN_COPY[preset.id];
+	if (copy) return copy.name[lang()];
+	return preset.id;
+}
+function displayDescription(preset) {
+	if (preset.description) return preset.description;
+	var copy = BUILT_IN_COPY[preset.id];
+	if (copy) return copy.description[lang()];
+	return "";
 }
 function msgOf(e) {
 	return String((e && e.message) || e);
@@ -36,7 +59,7 @@ function createController(api, currentSession, onApplied) {
 			var presets = res.result.value.presets || [];
 			fallback = (presets.find(function (p) { return p.isDefault; }) || presets[0] || {}).id || "";
 			var s = currentSession();
-			set({ options: presets.map(function (p) { return { id: p.id, name: p.name || p.id, description: p.description || "", isDefault: !!p.isDefault, trust: p.trust }; }),
+			set({ options: presets.map(function (p) { return { id: p.id, name: displayName(p), description: displayDescription(p), isDefault: !!p.isDefault, trust: p.trust }; }),
 				current: staged || (s && s.agentPreset) || fallback, error: null });
 		}).catch(function (e) { set({ error: msgOf(e) }); });
 	}
