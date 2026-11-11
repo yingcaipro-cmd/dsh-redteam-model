@@ -1,5 +1,20 @@
 # dsh-redteam-model
 
+> **自用维护 fork**（[`yingcaipro-cmd/dsh-redteam-model`](https://github.com/yingcaipro-cmd/dsh-redteam-model)）  
+> 跟踪上游 [`SeaOf0/dsh-redteam-model`](https://github.com/SeaOf0/dsh-redteam-model)，**只在本 fork 的 `install` 分支叠最小改动**；不向 upstream 提 PR / 不 push。上游更新不会自动进你的环境。
+>
+> **本 fork 相对上游的最小改动（DSH 0.2.2）**
+> 1. 各 mode 去掉 `list-agents`
+> 2. `dsh-mode-group`：内置模式中文名（跟 DSH locale，不只跟浏览器语言）
+> 3. mode-group **不要**把 `locale` 放进嵌套 inject 等待列表（否则选择器可能一直不加载）
+>
+> **推荐安装：**
+> ```bash
+> dsh plugin --profile web add github:yingcaipro-cmd/dsh-redteam-model#install
+> # 确认 package.json → dsh.profile.bundles 含 "@dsh-external/dsh-redteam-model"，然后重启 dsh
+> ```
+> 不要用上游 `github:SeaOf0/dsh-redteam-model`（无上述兼容补丁）。
+
 > 空了，闲聊。一个老安全人员的关注点：AI环境下，知识点很多知识面也很广，如果一味的给AI投递knowledge，你问它它能答得出来，但是你让它去完成一个任务而没有去给它规定这个任务如何去完成如何高效的去完成如何才能命中你需要的点，尽管它掌握着大量的知识但没有这个"workflow"去引导去把控，那么也许能得到你想要的结果，但是往往非常的浪费token，甚至有时候没有对某些方面的栅栏，它可能陷入死胡同，这就是为什么我们要去不断的设计完善workflow，把自身的经验写成skill或者agent，这样它才能按照workflow去完成任务+从旁的辅助，从而能高效的完成工作。
 >
 > dsh在安全工作这方面的设计实际上是有限的，只能从playbook中去设计，本身插件的载体还是dp-harness本身，为什么开发这个，也许仅仅因为跟风吧，还是希望DeepSeek能便宜些...（另一方面harness的优势特别明显，就个人而言，在做"反拒绝"上，harness相比claude原生的hook亦或是codex原生的hook又或者其他三方智能体导致封号风险，harness那真的是太easy了。）
@@ -76,8 +91,12 @@
 把整个合集作为一个 dsh 插件安装（需 dsh web 0.1.0-rc.6+，验证于 0.1.1-rc.2）：
 
 ```sh
-dsh plugin --profile web add github:SeaOf0/dsh-redteam-model
+# 自用（本 fork，含 DSH 0.2.2 最小兼容）
+dsh plugin --profile web add github:yingcaipro-cmd/dsh-redteam-model#install
 ```
+
+确认 `~/.dsh/profiles/web/package.json` 的 `dsh.profile.bundles` 含
+`"@dsh-external/dsh-redteam-model"`，然后重启 dsh。
 
 打开 dsh web 设置页 → **Redteam Manager**，即可：
 
