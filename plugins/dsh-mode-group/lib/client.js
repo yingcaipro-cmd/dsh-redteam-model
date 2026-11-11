@@ -22,30 +22,35 @@ var L10N = {
 	zh: { group: "专业安全模式", groupDesc: "九个专业安全模式", researcher: "研究员模式" },
 	en: { group: "Professional security", groupDesc: "Nine specialist modes", researcher: "Researcher" }
 };
-function lang() {
-	return /^zh/.test(navigator.language || "") ? "zh" : "en";
+// 优先用 DSH 设置里的语言（locale.getSnapshot().active），不要只用浏览器语言——
+// 否则 App 选中文、浏览器是 en 时，内置模式会显示 Standard mode。
+function langOf(locale) {
+	try {
+		var active = locale && typeof locale.getSnapshot === "function" && locale.getSnapshot().active;
+		if (typeof active === "string" && active) return /^zh/i.test(active) ? "zh" : "en";
+	} catch { /* locale 未就绪 */ }
+	return /^zh/i.test(navigator.language || "") ? "zh" : "en";
 }
-function t() {
-	return L10N[lang()];
+function t(locale) {
+	return L10N[langOf(locale)];
 }
-function displayName(preset) {
-	if (preset.name) return preset.name;
+function displayName(preset, locale) {
 	var copy = BUILT_IN_COPY[preset.id];
-	if (copy) return copy.name[lang()];
-	return preset.id;
+	// 内置预设始终走本地文案：list API / 宿主可能已填英文 name，不能优先用它。
+	if (copy) return copy.name[langOf(locale)];
+	return preset.name || preset.id;
 }
-function displayDescription(preset) {
-	if (preset.description) return preset.description;
+function displayDescription(preset, locale) {
 	var copy = BUILT_IN_COPY[preset.id];
-	if (copy) return copy.description[lang()];
-	return "";
+	if (copy) return copy.description[langOf(locale)];
+	return preset.description || "";
 }
 function msgOf(e) {
 	return String((e && e.message) || e);
 }
 
 // —— 控制器（暂存与应用语义对齐原生 seat）——
-function createController(api, currentSession, onApplied) {
+function createController(api, currentSession, onApplied, locale) {
 	var state = { options: [], current: "", error: null, busy: false };
 	var fallback = "";
 	var staged;
@@ -59,7 +64,7 @@ function createController(api, currentSession, onApplied) {
 			var presets = res.result.value.presets || [];
 			fallback = (presets.find(function (p) { return p.isDefault; }) || presets[0] || {}).id || "";
 			var s = currentSession();
-			set({ options: presets.map(function (p) { return { id: p.id, name: displayName(p), description: displayDescription(p), isDefault: !!p.isDefault, trust: p.trust }; }),
+			set({ options: presets.map(function (p) { return { id: p.id, name: displayName(p, locale), description: displayDescription(p, locale), isDefault: !!p.isDefault, trust: p.trust }; }),
 				current: staged || (s && s.agentPreset) || fallback, error: null });
 		}).catch(function (e) { set({ error: msgOf(e) }); });
 	}
@@ -113,7 +118,7 @@ function h0(el) { var m = el.style.maxHeight; el.style.maxHeight = ""; var h = e
 function Chip(props) {
 	var ctl = props.ctl;
 	var snap = props.useCtl();
-	var l = t();
+	var l = t(props.locale);
 	useEffect(function () { ctl.load(); }, []);   // 挂载即拉取 roster
 	var st = useState(false), menuOpen = st[0], setMenuOpen = st[1];
 	var sub = useState(false), subOpen = sub[0], setSubOpen = sub[1];
@@ -246,7 +251,7 @@ function installStyles() {
 
 function apply(ctx) {
 	ctx.effect(function () { return installStyles(); }, "dsh-mode-group: styles");
-	ctx.inject(["slots", "conversation", "sessions", "workspaces", "connection", "remote"], function (scope) {
+	ctx.inject(["slots", "conversation", "sessions", "workspaces", "connection", "remote", "locale"], function (scope) {
 		var active = true;
 		var stops = [];
 		function addStop(f) { stops.push(f); }
@@ -292,6 +297,11 @@ function apply(ctx) {
 			return !!(api && api.agentPresets && typeof api.agentPresets.list === "function");
 		}
 		function activate() {
+		// ctx.locale 来自插件顶层 inject；scope.locale 来自本 inject 列表（与 better-sidebar 同法读 getSnapshot().active）
+		var locale = null;
+		try { locale = scope.locale; } catch { /* 未注入 */ }
+		if (!locale) try { locale = typeof scope.get === "function" ? scope.get("locale") : null; } catch { /* 未提供 */ }
+		if (!locale) try { locale = ctx.locale; } catch { /* apply 外层 */ }
 		var ctl = createController(api, function () {
 			if (!active) return undefined;
 			try {
@@ -306,7 +316,7 @@ function apply(ctx) {
 			} catch { return undefined; }
 		}, function (sessionId, agentPreset) {
 			try { scope.sessions.noteAgentPreset(sessionId, agentPreset); } catch { /* 列表不在时静默 */ }
-		});
+		}, locale);
 		addStop(scope.sessions.list.subscribe(function () {
 			if (!active) return;
 			try { ctl.applyStaged(); } catch { /* 失活窗口静默 */ }
@@ -314,6 +324,14 @@ function apply(ctx) {
 		addStop(scope.remote.$on("agent-preset/selected", function (sessionId, agentPreset) {
 			try { scope.sessions.noteAgentPreset(sessionId, agentPreset); } catch { /* 同上 */ }
 		}));
+		// 语言切换后重算内置预设中英文名
+		try {
+			if (locale && typeof locale.subscribe === "function") {
+				addStop(locale.subscribe(function () { if (active) ctl.load(); }));
+			} else if (scope.remote && scope.remote.$on) {
+				addStop(scope.remote.$on("locale/change", function () { if (active) ctl.load(); }));
+			}
+		} catch { /* 无订阅则首次 load 用当前语言 */ }
 		scope.slots.inject("conversation.hero.agentPreset", function () {
 			var make = function (priority) {
 				return scope.slots.register({ name: "conversation.hero.agentPreset", priority: priority }, function () {
@@ -322,7 +340,7 @@ function apply(ctx) {
 					useEffect(function () { return ctl.subscribe(function (s) { st[1](s); }); }, []);
 					return sel === undefined ? st[0] : sel(st[0]);
 				};
-				return React.createElement(Chip, { ctl: ctl, useCtl: useCtl, key: "dsh-mg" });
+				return React.createElement(Chip, { ctl: ctl, useCtl: useCtl, locale: locale, key: "dsh-mg" });
 				});
 			};
 			try {

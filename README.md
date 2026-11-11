@@ -76,7 +76,10 @@
 把整个合集作为一个 dsh 插件安装（需 dsh web 0.1.0-rc.6+；**DSH 0.2.2+** 请用本 fork 兼容分支，已去掉过时的 `list-agents` 行）：
 
 ```sh
-# 推荐：本 fork 兼容分支（yingcaipro-cmd）
+# 本 fork（main 已含 0.2.2 兼容 + 内置模式中文名修复）
+dsh plugin --profile web add github:yingcaipro-cmd/dsh-redteam-model
+
+# 等价显式分支
 dsh plugin --profile web add github:yingcaipro-cmd/dsh-redteam-model#fix/dsh-022-compat
 
 # 上游（未含本 fork 的 0.2.2 兼容修复）
